@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 
 version = "v1.3.1"
 
-
 def submit(
     soundThresholdEntry: Entry,
     noiseFloorEntry: Entry,
@@ -38,11 +37,23 @@ def submit(
     """
     global noise_threshold, noise_floor, hertz_rate, ping_cooldown, volume_report_cooldown
 
-    noise_threshold = float(soundThresholdEntry.get())
-    noise_floor = float(noiseFloorEntry.get())
-    hertz_rate = int(sampleRateEntry.get())
-    ping_cooldown = float(pingCooldownEntry.get())
-    volume_report_cooldown = float(volumeReportCooldownEntry.get())
+    try:
+        noise_threshold = float(soundThresholdEntry.get())
+        noise_floor = float(noiseFloorEntry.get())
+        hertz_rate = int(sampleRateEntry.get())
+        ping_cooldown = float(pingCooldownEntry.get())
+        volume_report_cooldown = float(volumeReportCooldownEntry.get())
+        
+        if any(x < 0 for x in (noise_floor, ping_cooldown, volume_report_cooldown)):
+            raise ValueError
+        elif noise_threshold <= 0:
+            raise ValueError
+        elif hertz_rate < 44100:
+            raise ValueError
+        
+    except ValueError:
+        print("[ERROR] Invalid values, enter your settings again.")
+        return
 
     config["noise_threshold"] = noise_threshold
     config["noise_floor"] = noise_floor
@@ -66,6 +77,7 @@ def setting_configuration():
     """
     Configures and displays the audio detection settings.
     """
+    
     window.grid_columnconfigure((0, 1), weight=1)
     
     title_label = Label(window, font=("Arial", 25), text="Enter your settings in the boxes below")
@@ -101,16 +113,16 @@ def setting_configuration():
     submitButton.grid(row=6, column=0, columnspan=2, pady=20)
 
 
-def get_env_path():
+def get_file_path(filename: str) -> Path:
     """
-    Resolve the external .env file beside the script or executable.
+    Resolve the external config.json file beside the script or executable.
     """
     if getattr(sys, 'frozen', False):
-        return Path(sys.executable).resolve().parent / '.env'
-    return Path(__file__).resolve().parent / '.env'
+        return Path(sys.executable).resolve().parent / filename
+    return Path(__file__).resolve().parent / filename
 
 
-def load_config():
+def load_config() -> dict:
     """
     Loads the configuration from CONFIG_FILE, creating it with default values if missing.
 
@@ -127,7 +139,7 @@ def load_config():
         return {**DEFAULT_CONFIG, **saved}
 
 
-def save_config(cfg):
+def save_config(cfg: dict) -> None:
     """
     Saves the given configuration dictionary to CONFIG_FILE as formatted JSON.
 
@@ -146,7 +158,7 @@ env_template = (
     'FIRST_USER_ID=\n'
 )
 
-env_path = get_env_path()
+env_path = get_file_path(".env")
     
 
 def validate_env():
@@ -185,8 +197,6 @@ def validate_env():
             print()
             time.sleep(1)
 
-CONFIG_FILE = "config.json"
-
 notif_auto_delete_duration = 60  # seconds
 volume_auto_delete_duration = 20  # seconds
 
@@ -197,6 +207,7 @@ ping_cooldown = 5.0
 volume_report_cooldown = 2.0
 ping_user_on_alert = True
 
+CONFIG_FILE = get_file_path("config.json")
 DEFAULT_CONFIG = {  # config.json
     "noise_threshold": 0.1,
     "noise_floor": 0.01,
@@ -225,7 +236,7 @@ config["volume_report_cooldown"] = volume_report_cooldown
 config["ping_cooldown"] = ping_cooldown
 
 
-def find_audio_device():
+def find_audio_device() -> tuple[int, int]:
     """
     Find a suitable audio input device for detecting system audio.
 
@@ -349,20 +360,19 @@ def send_discord_ping(volume: float, delete_time: int):
         "allowed_mentions": {"parse": ["users"]},
     }
 
-    response = requests.post(
-        f"{FIRST_DISCORD_WEBHOOK_URL}?wait=true", json=data
-    )
-
-    if response.status_code in (200, 201):
-        msg_id = response.json().get("id")
-        threading.Thread(
-            target=auto_delete_msg,
-            args=(
+    try:
+        response = requests.post(
+            f"{FIRST_DISCORD_WEBHOOK_URL}?wait=true", json=data, timeout=(2, 5)
+        )
+        if response.status_code in (200, 201):
+            msg_id = response.json().get("id")
+            auto_delete_msg(
                 FIRST_DISCORD_WEBHOOK_URL,
                 msg_id,
                 notif_auto_delete_duration,
-            ),
-        ).start()
+            )
+    except requests.RequestException as e:
+        print(f"[WARNING] Failed to send notification: {e}")
 
 
 def send_volume_report(volume: float):
@@ -407,21 +417,20 @@ def send_volume_report(volume: float):
         "allowed_mentions": {"parse": ["users"]},
     }
 
-    response = requests.post(
-        f"{SECOND_DISCORD_WEBHOOK_URL}?wait=true", json=data
-    )
-
-    if response.status_code in (200, 201):
-        msg_id = response.json().get("id")
-        threading.Thread(
-            target=auto_delete_msg,
-            args=(
+    try:
+        response = requests.post(
+            f"{SECOND_DISCORD_WEBHOOK_URL}?wait=true", json=data, timeout=(1, 3)
+        )
+        if response.status_code in (200, 201):
+            msg_id = response.json().get("id")
+            auto_delete_msg(
                 SECOND_DISCORD_WEBHOOK_URL,
                 msg_id,
                 volume_auto_delete_duration,
-            ),
-        ).start()
-
+            )
+    except requests.RequestException as e:
+        print(f"[WARNING] Failed to send volume report: {e}")
+        
 
 def audio_callback(
     indata: np.ndarray,
@@ -456,49 +465,69 @@ def audio_callback(
         print(f"Volume: {volume_norm:.3f}")
 
         if current_time - last_volume_report_time > volume_report_cooldown:
-            send_volume_report(volume_norm)
             last_volume_report_time = current_time
+            threading.Thread(
+                target=send_volume_report,
+                args=(volume_norm,),
+                daemon=True,
+            ).start()
 
     if volume_norm > noise_threshold:
         if current_time - last_ping_time > ping_cooldown:
             print(f"*** Noise Detected! Volume Level: {volume_norm:.3f} ***")
             delete_time = int(current_time) + notif_auto_delete_duration
-            send_discord_ping(volume_norm, delete_time)
             last_ping_time = current_time
+            threading.Thread(
+                target=send_discord_ping,
+                args=(volume_norm, delete_time),
+                daemon=True,
+            ).start()
 
-validate_env()
 
-FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL")
-SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL")
-FIRST_USER_ID = os.getenv("FIRST_USER_ID")
+def main():  # Initilization
+    global window, FIRST_DISCORD_WEBHOOK_URL, SECOND_DISCORD_WEBHOOK_URL, FIRST_USER_ID
 
-window = tk.Tk()
-width = 700
-height = 500
-screen_width = window.winfo_screenwidth()
-screen_height = window.winfo_screenheight()
-x = int((screen_width / 2) - (width / 2))
-y = int((screen_height / 2) - (height / 2))
-window.title(f"Sound Detector {version}")
-window.geometry(f"{width}x{height}+{x}+{y}")
+    validate_env()
 
-setting_configuration()
-window.mainloop()
-    
-try:
-    print("\n" + "=" * 79 + "\n")
-    print(f"Listening on device index {DEVICE_INDEX} "
-      f"(Channels: {INPUT_CHANNELS} | Sample Rate: {hertz_rate}Hz)")
-    print(f"Noise Threshold: {noise_threshold} | Noise Floor: {noise_floor}")
-    print()
-    with sd.InputStream(
-        device=DEVICE_INDEX,
-        callback=audio_callback,
-        channels=INPUT_CHANNELS,
-        samplerate=hertz_rate,  # 44100 Hz is standard for any fast audio
-    ):
-        while True:
-            time.sleep(1)
-        
-except KeyboardInterrupt:
-    print("\nExiting...")
+    FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL")
+    SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL")
+    FIRST_USER_ID = os.getenv("FIRST_USER_ID")
+
+    window = tk.Tk()
+    width = 700
+    height = 500
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = int((screen_width / 2) - (width / 2))
+    y = int((screen_height / 2) - (height / 2))
+    window.title(f"Sound Detector {version}")
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+    # Exit the entire script if the user clicks the window's 'X' button
+    window.protocol("WM_DELETE_WINDOW", lambda: sys.exit(0))
+
+    setting_configuration()
+    window.mainloop()
+
+    try:
+        print("\n" + "=" * 79 + "\n")
+        print(
+            f"Listening on device index {DEVICE_INDEX} "
+            f"(Channels: {INPUT_CHANNELS} | Sample Rate: {hertz_rate}Hz)"
+        )
+        print(f"Noise Threshold: {noise_threshold} | Noise Floor: {noise_floor}\n")
+
+        with sd.InputStream(
+            device=DEVICE_INDEX,
+            callback=audio_callback,
+            channels=INPUT_CHANNELS,
+            samplerate=hertz_rate,
+        ):
+            while True:
+                time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nExiting...")
+
+if __name__ == "__main__":
+    main()

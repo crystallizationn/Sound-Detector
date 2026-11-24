@@ -135,6 +135,7 @@ Package Versions:
 * `numpy==2.5.2`
 * `sounddevice==0.5.6`
 * `python-dotenv==1.2.3`
+* `tzdata==2026.6`
 * `pytz==2026.3.post1` (for non-released version of v0.31)
 
 Discord Color Values:

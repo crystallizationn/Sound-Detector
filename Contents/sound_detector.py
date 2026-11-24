@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Sound Detector Script
-# v1.3.1
+# v1.4.1
 
-version = "v1.3.1"
+version = "v1.4.1"
 
 def submit(
     soundThresholdEntry: Entry,

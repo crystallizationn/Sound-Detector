@@ -11,29 +11,14 @@ from tkinter import *
 from typing import Any
 from pathlib import Path
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 # Sound Detector Script
-# v1.3.0
+# v1.3.1
 
-version = "v1.3.0"
-window = tk.Tk()
+version = "v1.3.1"
 
-width = 700
-height = 500
 
-# Screen width & height
-screen_width = window.winfo_screenwidth()
-screen_height = window.winfo_screenheight()
-
-x = int((screen_width / 2) - (width / 2))
-y = int((screen_height / 2) - (height / 2))
-
-window.title(f"Sound Detector {version}")
-window.geometry(f"{width}x{height}+{x}+{y}")
-
-    
 def submit(
     soundThresholdEntry: Entry,
     noiseFloorEntry: Entry,
@@ -72,6 +57,8 @@ def submit(
     print(f"Ping Cooldown: {ping_cooldown}")
     print(f"Volume Report Cooldown: {volume_report_cooldown}")
 
+    window.withdraw()
+    window.update()
     window.destroy()
 
 
@@ -187,20 +174,18 @@ def validate_env():
         
     elif env_path.exists():
         load_dotenv(dotenv_path=env_path, override=True)
-        #view_env = input("Do you want to view your .env data? (Y/N) ").upper().strip()
+        view_env = input("Do you want to view your .env data? (Y/N) ").upper().strip()
     
-        #if view_env == "Y":
-            #print()
-            #print('=' * 79)
-            #print("\n" + env_path.read_text(encoding="utf-8"))
-            #print("Double check that your .env data is up to date and meets utf-8 standards.\n")
-            #print('=' * 79)
-            #print()
+        if view_env == "Y":
+            print()
+            print('=' * 79)
+            print("\n" + env_path.read_text(encoding="utf-8"))
+            print("Double check that your .env data is up to date and meets utf-8 standards.\n")
+            print('=' * 79)
+            print()
+            time.sleep(1)
 
 CONFIG_FILE = "config.json"
-FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL")
-SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL")
-FIRST_USER_ID = os.getenv("FIRST_USER_ID")
 
 notif_auto_delete_duration = 60  # seconds
 volume_auto_delete_duration = 20  # seconds
@@ -222,7 +207,6 @@ DEFAULT_CONFIG = {  # config.json
 }
 
 last_volume_report_time = 0
-current_nyc_tz = ZoneInfo("America/New_York")
 active_messages = []
 messages_lock = threading.Lock()
 
@@ -482,15 +466,31 @@ def audio_callback(
             send_discord_ping(volume_norm, delete_time)
             last_ping_time = current_time
 
-print(f"Listening on device index {DEVICE_INDEX} "
-      f"(Channels: {INPUT_CHANNELS} | Sample Rate: {hertz_rate}Hz)")
-print(f"Noise Threshold: {noise_threshold} | Ping Cooldown: {ping_cooldown}s")
-
 validate_env()
+
+FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL")
+SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL")
+FIRST_USER_ID = os.getenv("FIRST_USER_ID")
+
+window = tk.Tk()
+width = 700
+height = 500
+screen_width = window.winfo_screenwidth()
+screen_height = window.winfo_screenheight()
+x = int((screen_width / 2) - (width / 2))
+y = int((screen_height / 2) - (height / 2))
+window.title(f"Sound Detector {version}")
+window.geometry(f"{width}x{height}+{x}+{y}")
+
 setting_configuration()
 window.mainloop()
     
 try:
+    print("\n" + "=" * 79 + "\n")
+    print(f"Listening on device index {DEVICE_INDEX} "
+      f"(Channels: {INPUT_CHANNELS} | Sample Rate: {hertz_rate}Hz)")
+    print(f"Noise Threshold: {noise_threshold} | Noise Floor: {noise_floor}")
+    print()
     with sd.InputStream(
         device=DEVICE_INDEX,
         callback=audio_callback,

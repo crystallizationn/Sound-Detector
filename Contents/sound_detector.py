@@ -6,24 +6,112 @@ import numpy as np
 import sounddevice as sd
 import requests
 import json
+import tkinter as tk
+from tkinter import *
 from typing import Any
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from decimal import InvalidOperation
 from dotenv import load_dotenv
 
 # Sound Detector Script
-# v1.2.1
+# v1.3.0
 
-env_template = (
-    "# Discord Webhook URL for loud sound alerts (required)\n"
-    'NOTIFY_USER_URL=\n\n'
-    "# Discord Webhook URL for live volume reports (optional)\n"
-    'VOLUME_REPORT_URL=\n\n'
-    "# Your Discord User ID (numbers only, required)\n"
-    'FIRST_USER_ID=\n'
-)
+version = "v1.3.0"
+window = tk.Tk()
+
+width = 700
+height = 500
+
+# Screen width & height
+screen_width = window.winfo_screenwidth()
+screen_height = window.winfo_screenheight()
+
+x = int((screen_width / 2) - (width / 2))
+y = int((screen_height / 2) - (height / 2))
+
+window.title(f"Sound Detector {version}")
+window.geometry(f"{width}x{height}+{x}+{y}")
+
+    
+def submit(
+    soundThresholdEntry: Entry,
+    noiseFloorEntry: Entry,
+    sampleRateEntry: Entry,
+    pingCooldownEntry: Entry,
+    volumeReportCooldownEntry: Entry,
+    ):
+    """
+    Get the submitted values for the settings configuration from the user.
+
+    Args:
+        soundThresholdEntry (Entry): The sound threshold value from the user.
+        noiseFloorEntry (Entry): The noise floor value from the user.
+        sampleRateEntry (Entry): The hertz rate value from the user.
+        pingCooldownEntry (Entry): The ping cooldown (seconds) from the user.
+        volumeReportCooldownEntry (Entry): The volume report cooldown (seconds) from the user.
+    """
+    global noise_threshold, noise_floor, hertz_rate, ping_cooldown, volume_report_cooldown
+
+    noise_threshold = float(soundThresholdEntry.get())
+    noise_floor = float(noiseFloorEntry.get())
+    hertz_rate = int(sampleRateEntry.get())
+    ping_cooldown = float(pingCooldownEntry.get())
+    volume_report_cooldown = float(volumeReportCooldownEntry.get())
+
+    config["noise_threshold"] = noise_threshold
+    config["noise_floor"] = noise_floor
+    config["sample_rate_hz"] = hertz_rate
+    config["ping_cooldown"] = ping_cooldown
+    config["volume_report_cooldown"] = volume_report_cooldown
+    save_config(config)
+
+    print(f"Sound Threshold: {noise_threshold}")
+    print(f"Noise Floor: {noise_floor}")
+    print(f"Sample Rate: {hertz_rate}")
+    print(f"Ping Cooldown: {ping_cooldown}")
+    print(f"Volume Report Cooldown: {volume_report_cooldown}")
+
+    window.destroy()
+
+
+def setting_configuration():
+    """
+    Configures and displays the audio detection settings.
+    """
+    window.grid_columnconfigure((0, 1), weight=1)
+    
+    title_label = Label(window, font=("Arial", 25), text="Enter your settings in the boxes below")
+    title_label.grid(row=0, column=0, columnspan=2, pady=20)
+    
+    def add_field(text, row, default_val):
+        label = Label(window, font=("Arial", 20), text=text)
+        label.grid(row=row, column=0, sticky="e", padx=10, pady=8)
+        
+        entry = Entry(window, font=("Arial", 18), bg="White", fg="Black", insertbackground="Black")
+        entry.insert(0, str(default_val))
+        entry.grid(row=row, column=1, sticky="w", padx=10, pady=8)
+        return label, entry
+
+    sound_threshold_label, sound_threshold_entry = add_field("Sound Threshold: ", 1, noise_threshold)
+    noise_floor_label, noise_floor_entry = add_field("Noise Floor: ", 2, noise_floor)
+    sample_rate_label, sample_rate_entry = add_field("Sample Rate: ", 3, hertz_rate)
+    ping_cooldown_label, ping_cooldown_entry = add_field("Ping Cooldown (s): ", 4, ping_cooldown)
+    volume_report_cooldown_label, volume_report_cooldown_entry = add_field("Volume Report Cooldown (s): ", 5, volume_report_cooldown)
+
+    submitButton = Button(
+        window,
+        font=("Arial", 16),
+        text="Submit", 
+        command=lambda: submit(
+            sound_threshold_entry, 
+            noise_floor_entry, 
+            sample_rate_entry,
+            ping_cooldown_entry,
+            volume_report_cooldown_entry,
+        )
+    )
+    submitButton.grid(row=6, column=0, columnspan=2, pady=20)
 
 
 def get_env_path():
@@ -34,35 +122,80 @@ def get_env_path():
         return Path(sys.executable).resolve().parent / '.env'
     return Path(__file__).resolve().parent / '.env'
 
+
+def load_config():
+    """
+    Loads the configuration from CONFIG_FILE, creating it with default values if missing.
+
+    Returns:
+        dict: The loaded configuration dictionary merged with DEFAULT_CONFIG.
+    """
+    if not os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CONFIG, f, indent=4)
+        return DEFAULT_CONFIG.copy()
+    
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        saved = json.load(f)
+        return {**DEFAULT_CONFIG, **saved}
+
+
+def save_config(cfg):
+    """
+    Saves the given configuration dictionary to CONFIG_FILE as formatted JSON.
+
+    Args:
+        cfg (dict): The configuration dictionary to save.
+    """
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=4)
+        
+env_template = (
+    "# Discord Webhook URL for loud sound alerts (required)\n"
+    'NOTIFY_USER_URL=\n\n'
+    "# Discord Webhook URL for live volume reports (optional)\n"
+    'VOLUME_REPORT_URL=\n\n'
+    "# Your Discord User ID (numbers only, required)\n"
+    'FIRST_USER_ID=\n'
+)
+
 env_path = get_env_path()
     
-if not env_path.exists():
-    print("[WARNING] No .env file was created in the user directory")
-    print("A .env file is required to recieve Discord pings and live volume tracking.")
-    create_env = input("Do you want to create a new .env file "
-                       "with all required details inside? (Y/N) ").upper().strip()
-    
-    if create_env == "Y":
-        print("237 INFO: Creating file for user because .env is non-existent")
 
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.write(env_template)
-            time.sleep(0.5)
-            print("288 INFO: Created local .env file in user workspace directory")
-            print("[INSTRUCTIONS] Fill out the details inside of the .env file "
-                  "in order to be mentioned through Discord.")
-        sys.exit(1)
-elif env_path.exists():
-    load_dotenv(dotenv_path=env_path, override=True)
-    view_env = input("Do you want to view your .env data? (Y/N) ").upper().strip()
+def validate_env():
+    """
+    Checks for whether an .env file is already existing in the user's directory.
+    """
+    global env_path
     
-    if view_env == "Y":
-        print()
-        print('=' * 79)
-        print("\n" + env_path.read_text(encoding="utf-8"))
-        print("Double check that your .env data is up to date and meets utf-8 standards.\n")
-        print('=' * 79)
-        print()
+    if not env_path.exists():
+        print("[WARNING] No .env file was created in the user directory")
+        print("A .env file is required to recieve Discord pings and live volume tracking.")
+        create_env = input("Do you want to create a new .env file "
+                           "with all required details inside? (Y/N) ").upper().strip()
+    
+        if create_env == "Y":
+            print("237 INFO: Creating file for user because .env is non-existent")
+
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write(env_template)
+                time.sleep(0.5)
+                print("288 INFO: Created local .env file in user workspace directory")
+                print("[INSTRUCTIONS] Fill out the details inside of the .env file "
+                      "in order to be mentioned through Discord.")
+            sys.exit(1)
+        
+    elif env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=True)
+        #view_env = input("Do you want to view your .env data? (Y/N) ").upper().strip()
+    
+        #if view_env == "Y":
+            #print()
+            #print('=' * 79)
+            #print("\n" + env_path.read_text(encoding="utf-8"))
+            #print("Double check that your .env data is up to date and meets utf-8 standards.\n")
+            #print('=' * 79)
+            #print()
 
 CONFIG_FILE = "config.json"
 FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL")
@@ -93,48 +226,6 @@ current_nyc_tz = ZoneInfo("America/New_York")
 active_messages = []
 messages_lock = threading.Lock()
 
-
-def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=4)
-        return DEFAULT_CONFIG.copy()
-    
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        saved = json.load(f)
-        return {**DEFAULT_CONFIG, **saved}
-
-
-def save_config(cfg):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=4)
-
-
-def get_valid_number(prompt: str, data_type=int, default=None):
-    """
-    Prompt continuously until valid numeric input is provided.
-
-    Args:
-        prompt (str): Text prompt displayed to the user.
-        data_type (type, optional): Numeric class (int, float, Decimal).
-        default (Any, optional): Value returned if input is left blank.
-
-    Returns:
-        int | float | Decimal: Cast numeric value or default.
-    """
-    while True:
-        user_input = input(prompt).strip()
-        if not user_input and default is not None:
-            return default
-        try:
-            return data_type(user_input)
-        except (ValueError, InvalidOperation):
-            print(
-                f"[ERROR] Invalid input. "
-                f"Please enter a valid {data_type.__name__}."
-            )
-            print()
-
 config = load_config()
 noise_threshold = config["noise_threshold"]
 noise_floor = config["noise_floor"]
@@ -143,37 +234,11 @@ ping_cooldown = config["ping_cooldown"]
 volume_report_cooldown = config["volume_report_cooldown"]
 ping_user_on_alert = config["ping_user_on_alert"]
 
-print("\nTo keep the values as they are, just hit Enter on the blank line to not change it.")
-print("Your settings will automatically save from your previous inputs.")
-
-noise_threshold = get_valid_number(f"Noise Threshold? [{noise_threshold}] ", float, noise_threshold)
-noise_floor = get_valid_number(f"Noise Floor? [{noise_floor}] ", float, noise_floor)
-hertz_rate = get_valid_number(f"Hertz Rate? [{hertz_rate}] ", int, hertz_rate)
-ping_cooldown = get_valid_number(f"Ping Cooldown? (seconds) [{ping_cooldown}] ", float, ping_cooldown)
-volume_report_cooldown = get_valid_number(f"Volume Report Cooldown? (seconds) [{volume_report_cooldown}] ", float, volume_report_cooldown)
-
-print("\nIf you want to reset all settings back to the original, enter 'RESET_ALL'.")
-reset_settings = input("Reset settings back to original? (ONLY DO THIS AFTER YOU'VE "
-                       "PERMANENTLY CHANGED YOUR SETTINGS ALREADY) ").upper().strip()
-
-if reset_settings == "RESET_ALL":
-    noise_threshold = 0.1
-    noise_floor = 0.01
-    hertz_rate = 44100
-    ping_cooldown = 5.0
-    volume_report_cooldown = 2.0
-    print("\nSettings were successfully changed to their original states.")
-else:
-    print("\nSettings weren't changed.")
-
-print()
 config["noise_threshold"] = noise_threshold
 config["noise_floor"] = noise_floor
 config["sample_rate_hz"] = hertz_rate
 config["volume_report_cooldown"] = volume_report_cooldown
 config["ping_cooldown"] = ping_cooldown
-
-save_config(config)
 
 
 def find_audio_device():
@@ -421,6 +486,10 @@ print(f"Listening on device index {DEVICE_INDEX} "
       f"(Channels: {INPUT_CHANNELS} | Sample Rate: {hertz_rate}Hz)")
 print(f"Noise Threshold: {noise_threshold} | Ping Cooldown: {ping_cooldown}s")
 
+validate_env()
+setting_configuration()
+window.mainloop()
+    
 try:
     with sd.InputStream(
         device=DEVICE_INDEX,
@@ -430,5 +499,6 @@ try:
     ):
         while True:
             time.sleep(1)
+        
 except KeyboardInterrupt:
     print("\nExiting...")

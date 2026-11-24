@@ -68,7 +68,8 @@ Select and verify the appropriate input device in your system's audio settings.
 ## Configuration
 
 Create a plain-text file named `.env` in the project directory (with no `.txt` extension).  
-Add your webhook URL and Discord user ID:  
+Running the script will check if you have one in your directory and ask if you would like to see its data.  
+Add your webhook URL and Discord user ID data:  
 
 ```dotenv
 NOTIFY_USER_URL=your_webhook_url
@@ -83,24 +84,12 @@ VOLUME_REPORT_URL=your_second_webhook_url
 
 Keep webhook URLs private. You can configure additional user IDs in the script if you want other accounts to be mentioned.
 
-### Script Settings
-
-The sound threshold is adjustable in the script. A detected volume above the threshold triggers an alert;  
-for example, a reading of `0.214` exceeds a threshold of `0.1`.  
-Different devices and applications can produce very different readings,  
-so adjust the threshold while checking the volume values from your input device.
-
-The script's `NOISE_FLOOR` setting controls which volume readings are printed in the Terminal. Increase it to reduce output. `PING_COOLDOWN` and `AUTO_DELETE_DURATION` are also adjustable; their values are in seconds.
-
-For more reliable readings, verify your input volume in system settings.  
-On Windows, try a sample rate of 44,100 or 48,000 Hz if the device supports it.
-
 ---
 
 ## Running the Program
 
 Before starting the executable, make sure the `.env` file is in the same folder and contains a valid Discord webhook URL and user ID.  
-Without this file, Discord notification data will not be available and alerts will not work correctly.
+Without this file, Discord notification data will not be available and alerts will not work.
 
 Launch the downloaded executable for your operating system:
 

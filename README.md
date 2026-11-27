@@ -9,10 +9,10 @@ and automatically delete alert messages after a set interval. An optional second
 ## Features
 
 * **Sound Detection:** Monitor audio input and trigger alerts above a configurable threshold.
-* **Discord Notifications:** Send a message to a Discord channel and mention one or more users.
+* **Discord Notifications:** Send a message to a Discord channel and mention a user.
 * **Live Volume (Optional):** Post volume readings through a second webhook, with readings above the threshold highlighted.
 * **Automatic Cleanup:** Delete alert messages after 60 seconds and live volume messages after 20 seconds by default.
-* **Cooldown:** Wait 5 seconds between user pings by default.
+* **Customizable Settings:** Be able to change the noise threshold, noise floor, and etc through a GUI.  
 
 ---
 
@@ -20,11 +20,12 @@ and automatically delete alert messages after a set interval. An optional second
 
 ### Requirements
 
-* A macOS, Windows, or Linux computer
+* A macOS or Windows computer
 * The Sound Detector executable for your operating system
-* A Discord server and webhook
+* A Discord server, user ID, and webhook
 * An audio input device that receives the sound you want to monitor
 * A configured `.env` file (required for Discord notifications)
+* A configured `config.json` file (to save sound detection settings)  
 
 ### Download and Run
 
@@ -32,24 +33,15 @@ Download the correct executable, depending on your OS from the project's Release
 
 #### macOS
 
-Open the extracted folder and double-click the Sound Detector executable.  
-If macOS blocks it, open **System Settings > Privacy & Security** and allow the app to run.  
+Open the `.dmg` file and drag the Sound Detector app into the Applications folder.  
+If macOS blocks you from opening the app, open **System Settings > Privacy & Security** and allow the app to run.  
 Grant any requested microphone or audio input access so it can listen to the selected device.
 
 #### Windows
 
-Open the extracted folder and double-click the Sound Detector `.exe` file.  
+Open the `.exe` file and double-click it.
 If Windows SmartScreen displays a warning, confirm that the file came from the project's Releases page before choosing **More info > Run anyway**.  
 Allow audio input access if Windows requests it.
-
-#### Linux
-
-Open a Terminal in the extracted folder and run:
-
-```bash
-chmod +x ./SoundDetector-Linux
-./SoundDetector-Linux
-```
 
 Ensure your desktop session and selected audio input allow the program to capture the audio you want to monitor.
 
@@ -73,7 +65,7 @@ Add your webhook URL and Discord user ID data:
 
 ```dotenv
 NOTIFY_USER_URL=your_webhook_url
-FIRST_USER_ID=your_discord_user_id
+USER_ID=your_discord_user_id
 ```
 
 For optional live volume reports, add a second webhook:
@@ -84,18 +76,22 @@ VOLUME_REPORT_URL=your_second_webhook_url
 
 Keep webhook URLs private. You can configure additional user IDs in the script if you want other accounts to be mentioned.
 
+To edit your settings, you can also change the values inside of the `config.json` file to your prefrences;  
+though they automatically save to whatever you chose through the GUI that opens when using the application.
+
 ---
 
 ## Running the Program
 
-Before starting the executable, make sure the `.env` file is in the same folder and contains a valid Discord webhook URL and user ID.  
+Before starting the executable, make sure the `.env` file is in the same user directory  
+you're running the application through, and contains a valid Discord webhook URL and user ID.  
+
 Without this file, Discord notification data will not be available and alerts will not work.
 
 Launch the downloaded executable for your operating system:
 
 * **macOS:** Double-click the Sound Detector executable.
 * **Windows:** Double-click the Sound Detector `.exe` file.
-* **Linux:** Run the executable from Terminal as described under **Download and Run**.
 
 The program sends a Discord alert when the monitored audio exceeds the configured threshold.  
 Successful alerts include the detected volume and a timestamp in America/New_York time.  
@@ -126,6 +122,7 @@ Package Versions:
 * `python-dotenv==1.2.3`
 * `tzdata==2026.6`
 * `pytz==2026.3.post1` (for non-released version of v0.31)
+* `pillow==13.0.0`  
 
 Discord Color Values:
 

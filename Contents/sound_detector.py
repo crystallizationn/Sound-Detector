@@ -67,7 +67,7 @@ def submit(
             raise ValueError
         
     except ValueError:
-        messagebox.showerror("[ERROR]", "Invalid settings; please check your values and try again.")
+        messagebox.showerror("[WARNING] - Invalid Settings", "Invalid settings; please check your values and try again.")
         return
 
     config["noise_threshold"] = noise_threshold
@@ -349,18 +349,9 @@ def validate_env() -> None:
         else:
             sys.exit(0)
 
-    elif env_path.exists():
+    else:
         load_dotenv(dotenv_path=env_path, override=True)
-        view_env = messagebox.askyesno(
-            title="View .env Data",
-            message="Do you want to view your current .env data?"
-        )
 
-        if view_env:
-            messagebox.showinfo(
-                title="Current .env Data",
-                message=env_path.read_text(encoding="utf-8")
-            )
 
 notif_auto_delete_duration = 60  # seconds
 volume_auto_delete_duration = 20  # seconds
@@ -420,7 +411,7 @@ def find_audio_device() -> tuple[int, int]:
     try:
         devices = sd.query_devices()
     except Exception:
-        show_fatal_error("[ERROR]", "Cannot query audio devices")
+        show_fatal_error("Audio Device Failure", "Cannot query audio devices")
         sys.exit(1)
 
     for i, dev in enumerate(devices):
@@ -438,7 +429,7 @@ def find_audio_device() -> tuple[int, int]:
         if dev["max_input_channels"] > 0:
             return i, dev["max_input_channels"]
 
-    show_fatal_error("[ERROR]", "No valid audio input device(s) found")
+    show_fatal_error("Audio Device Failure", "No valid audio input device(s) found")
     sys.exit(1)
 
 

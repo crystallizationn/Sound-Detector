@@ -180,8 +180,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-Linux/
 macOS/
 Windows/
 config.json
-Contents/index.html
+index.html
+image/

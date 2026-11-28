@@ -359,34 +359,16 @@ def save_config(cfg: dict) -> None:
         json.dump(cfg, f, indent=4)
 
 
-def validate_env() -> None:
+def create_env() -> None:
     """
-    Checks for whether an .env file is already existing in the user's directory.
+    Creates an .env file in the user directory for required fields
+    (i.e user ID, webhook URL(s)).
     """
     global env_path
 
     if not env_path.exists():
-        create_env = messagebox.askyesno(
-            title="Missing .env File",
-            message=(
-                "No .env file was found in your directory.\n\n"
-                "An .env file is required for Discord pings and live volume tracking.\n\n"
-                "Do you want to create a new .env file now?"
-            )
-        )
-
-        if create_env:
-            with open(env_path, "w", encoding="utf-8") as f:
-                f.write(env_template)
-            messagebox.showinfo(
-                title=".env File Created",
-                message=(
-                    f"Created .env file at:\n{env_path}\n\n"
-                    "Please fill out your Discord Webhook URL(s) and User ID in the GUI."
-                )
-            )
-        else:
-            sys.exit(0)
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.write(env_template)
 
     else:
         load_dotenv(dotenv_path=env_path, override=True)
@@ -740,7 +722,7 @@ def main() -> None:  # Initilization
 
     window = tk.Tk()
     window.withdraw()
-    validate_env()
+    create_env()
 
     FIRST_DISCORD_WEBHOOK_URL = os.getenv("NOTIFY_USER_URL") or ""
     SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL") or ""

@@ -180,7 +180,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-macOS/
-Windows/
 config.json
 index.html

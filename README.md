@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/524a21bc-4520-4f7a-8129-a84b6ac04326" alt="Sound Detector Icon" width="128" height="128" />
+  <img src="https://github.com/user-attachments/assets/55ee69cf-09ea-4f6b-b7c3-ff2862bff748" alt="Sound Detector Icon" width="128" height="128" />
   <br />
-  <strong>App icon made by <a href="https://flaticon.com">Magnific</a> from <a href="https://www.flaticon.com">www.flaticon.com</a></strong>
+  <strong>Sound Detector App (Available for macOS and Windows)</strong>
 </p>
+
 
 # Sound Detector
 
@@ -11,8 +12,6 @@ when the detected volume passes a configurable threshold.
 
 The bot can mention your Discord user, include the detected volume and a timestamp,  
 and automatically delete alert messages after a set interval. An optional second webhook can report live volume levels.
-
-**(Available on macOS and Windows)**
 
 <img width="800" height="520" alt="SoundDetectorDemo" src="images/SoundDetectorDemo.gif" />
 
@@ -103,8 +102,8 @@ Without this file, Discord notification data will not be available and alerts wi
 
 Launch the downloaded executable for your operating system:
 
-* **macOS:** Double-click the Sound Detector executable.
-* **Windows:** Double-click the Sound Detector `.exe` file.
+* **macOS:** Double click the Sound Detector app.
+* **Windows:** Double click the Sound Detector `.exe` file.
 
 The program sends a Discord alert when the monitored audio exceeds the configured threshold.  
 Successful alerts include the detected volume and a timestamp in America/New_York time.  

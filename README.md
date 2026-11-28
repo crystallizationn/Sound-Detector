@@ -1,6 +1,7 @@
 <p align="center">
   <img src="https://github.com/user-attachments/assets/524a21bc-4520-4f7a-8129-a84b6ac04326" alt="Sound Detector Icon" width="128" height="128" />
   <br />
+  <strong>App icon made by <a href="https://flaticon.com">Magnific</a> from <a href="https://www.flaticon.com">www.flaticon.com</a></strong>
 </p>
 
 # Sound Detector
@@ -126,7 +127,7 @@ If enabled, live volume readings are posted to the second webhook.
 
 ## Developer Notes
 
-Made with love by @Crystallization (@crystallizationn).
+Made with love by @Crystallization (@crystallizationn).  
 
 Package Versions:
 

@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/524a21bc-4520-4f7a-8129-a84b6ac04326" alt="Sound Detector Icon" width="128" height="128" />
+  <br />
+  <strong>App icon made by <a href="https://flaticon.com">Magnific</a> from <a href="https://www.flaticon.com">www.flaticon.com</a></strong>
+</p>
+
 # Sound Detector
 
 Sound Detector application that listens for your device audio and sends alerts to Discord  
@@ -5,6 +11,8 @@ when the detected volume passes a configurable threshold.
 
 The bot can mention your Discord user, include the detected volume and a timestamp,  
 and automatically delete alert messages after a set interval. An optional second webhook can report live volume levels.
+
+**(Available on macOS and Windows)**
 
 https://github.com/user-attachments/assets/2d4a51c3-b0a8-41b5-b2ab-c73317d9f6e9
 
@@ -119,7 +127,7 @@ If enabled, live volume readings are posted to the second webhook.
 
 ## Developer Notes
 
-Made with love by @Crystallization (@crystallizationn).
+Made with love by @Crystallization (@crystallizationn).  
 
 Package Versions:
 

@@ -328,7 +328,7 @@ def get_file_path(filename: str) -> Path:
     """
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).resolve().parent / filename
-    return Path(__file__).resolve().parent / filename
+    return Path(__file__).resolve().parent.parent / filename
 
 
 def load_config() -> dict:

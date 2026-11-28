@@ -21,12 +21,12 @@ jobs:
             platform: Apple Silicon macOS
             executable: Sound Detector
             archive: Sound Detector.dmg
-            pyinstaller_args: "--onedir --windowed --icon=images/audio_waves.icns --osx-bundle-identifier=com.sounddetector.app"
+            pyinstaller_args: "--onedir --windowed --icon=images/SoundDetectorIcon.icns --osx-bundle-identifier=com.sounddetector.app"
           - runner: windows-latest
             platform: Windows
             executable: Sound Detector
             archive: Sound Detector.exe
-            pyinstaller_args: "--onefile --windowed --icon=images/audio_waves.ico"
+            pyinstaller_args: "--onefile --windowed --icon=images/SoundDetectorIcon.ico"
 
     steps:
       - name: Check out source

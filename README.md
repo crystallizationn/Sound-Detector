@@ -14,9 +14,7 @@ and automatically delete alert messages after a set interval. An optional second
 
 **(Available on macOS and Windows)**
 
-https://github.com/user-attachments/assets/2d4a51c3-b0a8-41b5-b2ab-c73317d9f6e9
-
-*Music: "Ruder Buster" by Toby Fox*
+<img width="800" height="520" alt="SoundDetectorDemo" src="images/SoundDetectorDemo.gif" />
 
 ## Features
 

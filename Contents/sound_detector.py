@@ -8,17 +8,29 @@ import requests
 import json
 import tkinter as tk
 from tkinter import *
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from typing import Any
 from pathlib import Path
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Sound Detector Script
-# v2.0.0
+# v2.1.0
     
-version = "v2.0.0"
+version = "v2.1.0"
+volume_bar: ttk.Progressbar | None = None
 
+
+def show_fatal_error(title: str, message: str) -> None:
+    """
+    Display an error popup even if the main Tkinter window isn't open yet.
+    """
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(title=title, message=message)
+    root.destroy()
+    sys.exit(1)
+    
 
 def submit(
     noiseThreshold: Entry,
@@ -26,6 +38,7 @@ def submit(
     sampleRate: Entry,
     pingCooldown: Entry,
     volumeReportCooldown: Entry,
+    alertUser: tk.BooleanVar,
     userID: Entry,
     firstWebhookUrl: Entry,
     secondWebhookUrl: Entry,
@@ -34,16 +47,17 @@ def submit(
     Get the submitted values for the settings configuration from the user.
 
     Args:
-        soundThreshold (Entry): The sound threshold value from the user.
-        noiseFloor (Entry): The noise floor value from the user.
-        sampleRate (Entry): The hertz rate value from the user.
-        pingCooldown (Entry): The ping cooldown (seconds) from the user.
-        volumeReportCooldown (Entry): The volume report cooldown (seconds) from the user.
-        firstUserID (Entry): The Discord user's ID.
+        noiseThreshold (Entry): The value that determines whether to mention the user ID on Discord.
+        noiseFloor (Entry): Minimum sound floor that will be passed through the live volume bar.
+        sampleRate (Entry): Value of the hertz rate to help with sound accuracy.
+        pingCooldown (Entry): Cooldown (seconds) for when the user can be pinged in Discord.
+        volumeReportCooldown (Entry): Cooldown (seconds) for when the volume report can be sent in Discord.
+        alertUser (tk.BooleanVar): Boolean switch that determines whether to ping the user on exceeded thresholds or not.
+        userID (Entry): The Discord user's ID for the webhook URL(s) to mention.
         firstWebhookUrl (Entry): The first Discord webhook URL for notifications.
         secondWebhookUrl (Entry): The second Discord webhook URL for volume reports.
     """
-    global noise_threshold, noise_floor, hertz_rate, ping_cooldown, volume_report_cooldown, USER_ID, FIRST_DISCORD_WEBHOOK_URL, SECOND_DISCORD_WEBHOOK_URL
+    global noise_threshold, noise_floor, hertz_rate, ping_cooldown, volume_report_cooldown, ping_user_on_alert, volume_bar, USER_ID, FIRST_DISCORD_WEBHOOK_URL, SECOND_DISCORD_WEBHOOK_URL
 
     try:
         noise_threshold = float(noiseThreshold.get())
@@ -51,23 +65,30 @@ def submit(
         hertz_rate = int(sampleRate.get())
         ping_cooldown = float(pingCooldown.get())
         volume_report_cooldown = float(volumeReportCooldown.get())
+        ping_user_on_alert = bool(alertUser.get())
         USER_ID = int(userID.get().strip())
         FIRST_DISCORD_WEBHOOK_URL = str(firstWebhookUrl.get().strip())
         SECOND_DISCORD_WEBHOOK_URL = str(secondWebhookUrl.get().strip())
 
         if any(x < 0 for x in (noise_floor, ping_cooldown, volume_report_cooldown)):
-            raise ValueError
+            messagebox.showerror("Invalid Settings", "Noise Floor, Ping Cooldown and Volume Report Cooldown "
+                                 "cannot be under 0 and must be at absolute value.")
+            return
         elif noise_threshold <= 0:
-            raise ValueError
-        elif hertz_rate < 44100:
-            raise ValueError
-        elif not isinstance(USER_ID, int):
-            raise ValueError
-        elif not FIRST_DISCORD_WEBHOOK_URL and not SECOND_DISCORD_WEBHOOK_URL:
-            raise ValueError
+            messagebox.showerror("Invalid Settings", "Noise Threshold cannot be under 0.")
+            return
+        elif hertz_rate < 24100:
+            messagebox.showerror("Invalid Settings", "Hertz Rate cannot be under 24100.")
+            return
+        elif not isinstance(USER_ID, int) or USER_ID < 0:
+            messagebox.showerror("Invalid Settings", "User ID must be positive numbers only.")
+            return
+        elif not FIRST_DISCORD_WEBHOOK_URL.startswith("https://discord") and not SECOND_DISCORD_WEBHOOK_URL.startswith("https://discord"):
+            messagebox.showerror("Invalid Settings", "Webhook(s) must start with https://discord")
+            return
         
-    except ValueError:
-        messagebox.showerror("[WARNING] - Invalid Settings", "Invalid settings; please check your values and try again.")
+    except Exception as e:
+        messagebox.showerror("Invalid Settings", f"Invalid input entered: {e}")
         return
 
     config["noise_threshold"] = noise_threshold
@@ -75,6 +96,7 @@ def submit(
     config["sample_rate_hz"] = hertz_rate
     config["ping_cooldown"] = ping_cooldown
     config["volume_report_cooldown"] = volume_report_cooldown
+    config["ping_user_on_alert"] = ping_user_on_alert
     config["user_id"] = USER_ID
     config["first_webhook_url"] = FIRST_DISCORD_WEBHOOK_URL
     config["second_webhook_url"] = SECOND_DISCORD_WEBHOOK_URL
@@ -86,56 +108,18 @@ def submit(
         widget.destroy()
 
     # Resize to a compact status window
-    window.geometry("420x280")
+    window.geometry("420x325")
     Label(window, font=("Arial", 20, "bold"), text="Listening for Audio...").pack(pady=(25, 8))
-    Label(window, font=("Arial", 14), text=f"Threshold: {noise_threshold} | Floor: {noise_floor}").pack(pady=(0, 15))
+    Label(window, font=("Arial", 14), text=f"Threshold: {noise_threshold} | Floor: {noise_floor}").pack(pady=(0, 10))
+    
+    volume_bar = ttk.Progressbar(window, orient="horizontal", length=300, mode="determinate", maximum=100)
+    volume_bar.pack(pady=(0, 15))
+
     Button(window, font=("Arial", 15), text="Test Webhook", width=18, command=test_webhooks).pack(pady=5)
     Button(window, font=("Arial", 15), text="Delete Messages", width=18, command=delete_all_messages).pack(pady=5)
     Button(window, font=("Arial", 15), text="Stop & Quit", width=18, command=on_close).pack(pady=5)
 
     threading.Thread(target=audio_listener, daemon=True).start()
-
-
-def on_close() -> None:
-    """
-    Completely quit and destroy the window, exiting the script.
-    """
-    window.quit()
-    window.destroy()
-    sys.exit(0)
-        
-
-def delete_all_messages() -> None:
-    """
-    Immediately delete all tracked active Discord webhook messages.
-    """
-    def _worker() -> None:
-        with messages_lock:
-            to_delete = list(active_messages)
-            active_messages.clear()
-
-        if not to_delete:
-            window.after(0, lambda: messagebox.showinfo("Delete Messages", "No active messages to delete."))
-            return
-
-        deleted_count = 0
-        for webhook_url, msg_id in to_delete:
-            try:
-                res = requests.delete(f"{webhook_url}/messages/{msg_id}", timeout=5)
-                if res.status_code in (200, 204):
-                    deleted_count += 1
-            except requests.RequestException:
-                pass
-
-        window.after(
-            0,
-            lambda: messagebox.showinfo(
-                "Delete Messages",
-                f"Deleted {deleted_count} of {len(to_delete)} active message(s)."
-            )
-        )
-
-    threading.Thread(target=_worker, daemon=True).start()
 
 
 def test_webhooks() -> None:
@@ -183,45 +167,130 @@ def test_webhooks() -> None:
                         args=(url, msg_id, volume_auto_delete_duration),
                         daemon=True,
                     ).start()
-                    results.append(f"• {label}: Success")
+                    results.append(f"* {label}: Success")
                 else:
-                    results.append(f"• {label}: Failed (HTTP {res.status_code})")
+                    results.append(f"* {label}: Failed (HTTP {res.status_code})")
             except requests.RequestException as e:
-                results.append(f"• {label}: Error ({e})")
+                results.append(f"* {label}: Error ({e})")
 
         summary = "\n".join(results) if results else "No webhook URLs configured."
         window.after(0, lambda: messagebox.showinfo("Test Webhook Results", summary))
 
     threading.Thread(target=_worker, daemon=True).start()
+        
 
+def delete_all_messages() -> None:
+    """
+    Immediately delete all tracked active Discord webhook messages.
+    """
+    def _worker() -> None:
+        with messages_lock:
+            to_delete = list(active_messages)
+            active_messages.clear()
+
+        if not to_delete:
+            window.after(0, lambda: messagebox.showinfo("Delete Messages", "No active messages to delete."))
+            return
+
+        deleted_count = 0
+        for webhook_url, msg_id in to_delete:
+            try:
+                res = requests.delete(f"{webhook_url}/messages/{msg_id}", timeout=5)
+                if res.status_code in (200, 204):
+                    deleted_count += 1
+            except requests.RequestException:
+                pass
+
+        window.after(
+            0,
+            lambda: messagebox.showinfo(
+                "Delete Messages",
+                f"Deleted {deleted_count} of {len(to_delete)} active message(s)."
+            )
+        )
+
+    threading.Thread(target=_worker, daemon=True).start()
+    
+    
+def on_close() -> None:
+    """
+    Completely quit and destroy the window, exiting the script.
+    """
+    window.quit()
+    window.destroy()
+    sys.exit(0)
+    
 
 def setting_configuration() -> None:
     """
     Configures and displays the audio detection settings.
     """
-    
     window.grid_columnconfigure((0, 1), weight=1)
     
     title_label = Label(window, font=("Arial", 25), text="Enter your settings in the boxes below")
     title_label.grid(row=0, column=0, columnspan=2, pady=20)
     
-    def add_field(text, row, default_val):
+    
+    def add_field(
+        text: str, 
+        row: int, 
+        default_val: int | float | str, 
+        mask: str = ""
+        ) -> Entry:
+        """
+        Create a labeled Entry field in the settings grid.
+        
+        Args:
+            text (str): The label text beside the input box.
+            row (int): The grid row index where the label and input box are placed.
+            default_val (int | float | str): The initial value pre-filled inside the input box.
+            mask (str, optional): Character used to obscure sensitive text (e.g., "*"). Defaults to "".
+
+        Returns:
+            Entry: The main Tkinter Entry object.
+        """
         label = Label(window, font=("Arial", 20), text=text)
         label.grid(row=row, column=0, sticky="e", padx=10, pady=8)
         
-        entry = Entry(window, font=("Arial", 18), bg="White", fg="Black", insertbackground="Black")
+        entry = Entry(window, font=("Arial", 18), bg="White", fg="Black", insertbackground="Black", show=mask)
         entry.insert(0, str(default_val))
         entry.grid(row=row, column=1, sticky="w", padx=10, pady=8)
         return entry
+    
+    
+    def show_sensitive_info(
+        userID: Entry,
+        firstWebhookUrl: Entry,
+        secondWebhookUrl: Entry,
+    ) -> None:
+        """
+        Toggle the visibility of sensitive fields (i.e User ID and Discord webhook URLs).
 
+        Args:
+            userID (Entry): The Entry widget containing the Discord User ID.
+            firstWebhookUrl (Entry): The Entry widget containing the alert webhook URL.
+            secondWebhookUrl (Entry): The Entry widget containing the volume report webhook URL.
+        """
+        
+        entries = (userID, firstWebhookUrl, secondWebhookUrl)
+        is_hidden = userID.cget("show") == "*"
+
+        for entry in entries:
+            entry.config(show="" if is_hidden else "*")
+
+        showInfo.config(text="Hide Sensitive Info" if is_hidden else "Show Sensitive Info")
+        
     noise_threshold_entry = add_field("Noise Threshold: ", 1, noise_threshold)
     noise_floor_entry = add_field("Noise Floor: ", 2, noise_floor)
     sample_rate_entry = add_field("Sample Rate: ", 3, hertz_rate)
     ping_cooldown_entry = add_field("Ping Cooldown (s): ", 4, ping_cooldown)
     volume_report_cooldown_entry = add_field("Volume Report Cooldown (s): ", 5, volume_report_cooldown)
-    user_id_entry = add_field("User ID: ", 6, USER_ID)
-    first_webhook_url_entry = add_field("First Webhook URL: ", 7, FIRST_DISCORD_WEBHOOK_URL)
-    second_webhook_url_entry = add_field("Second Webhook URL: ", 8, SECOND_DISCORD_WEBHOOK_URL)
+    Label(window, font=("Arial", 20), text="Ping User on Exceeded Threshold: ").grid(row=6, column=0, sticky="e", padx=10, pady=8)
+    ping_user_var = tk.BooleanVar(value=ping_user_on_alert)
+    Checkbutton(window, variable=ping_user_var).grid(row=6, column=1, sticky="w", padx=10, pady=8)
+    user_id_entry = add_field("User ID: ", 7, USER_ID, mask="*")
+    first_webhook_url_entry = add_field("First Webhook URL: ", 8, FIRST_DISCORD_WEBHOOK_URL, mask="*")
+    second_webhook_url_entry = add_field("Second Webhook URL: ", 9, SECOND_DISCORD_WEBHOOK_URL, mask="*")
     
     submitButton = Button(
         window,
@@ -233,28 +302,29 @@ def setting_configuration() -> None:
             sample_rate_entry,
             ping_cooldown_entry,
             volume_report_cooldown_entry,
+            ping_user_var,
             user_id_entry,
             first_webhook_url_entry,
             second_webhook_url_entry
         )
     )
-    submitButton.grid(row=9, column=0, columnspan=2, pady=20)
-
-
-def show_fatal_error(title: str, message: str) -> None:
-    """
-    Display an error popup even if the main Tkinter window isn't open yet.
-    """
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showerror(title=title, message=message)
-    root.destroy()
-    sys.exit(1)
+    showInfo = Button(
+        window,
+        font=("Arial", 16),
+        text="Show Sensitive Info",
+        command=lambda: show_sensitive_info(
+            user_id_entry,
+            first_webhook_url_entry,
+            second_webhook_url_entry
+        )
+    )
+    submitButton.grid(row=10, column=0, columnspan=2, pady=20)
+    showInfo.grid(row=11, column=0, columnspan=2)
     
 
 def get_file_path(filename: str) -> Path:
     """
-    Resolve the external config.json file beside the script or executable.
+    Resolve the external file(s) beside the script or executable.
     """
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).resolve().parent / filename
@@ -287,37 +357,6 @@ def save_config(cfg: dict) -> None:
     """
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=4)
-
-
-def save_env(notify_url: str, volume_url: str, user_id: int | str) -> None:
-    """
-    Saves the Discord Webhook URLs and User ID to the .env file.
-    """
-    content = (
-        "# Atleast ONE webhook URL MUST be filled in for the script to actually"
-        "\n# do something inside of just quietly detecting for noise in the background."
-        "\n\n# Discord Webhook URL for loud sound alerts"
-        f'\nNOTIFY_USER_URL={notify_url}'
-        "\n\n# Discord Webhook URL for live volume reports"
-        f'\nVOLUME_REPORT_URL={volume_url}'
-        "\n\n# Your Discord User ID (numbers only, required)"
-        f'\nUSER_ID={user_id}\n'
-    )
-    env_path.write_text(content, encoding="utf-8")
-
-
-env_template = (
-    "# Atleast ONE webhook URL MUST be filled in for the script to actually"
-    "\n# do something inside of just quietly detecting for noise in the background."
-    "\n\n# Discord Webhook URL for loud sound alerts"
-    '\nNOTIFY_USER_URL='
-    "\n\n# Discord Webhook URL for live volume reports"
-    '\nVOLUME_REPORT_URL='
-    "\n\n# Your Discord User ID (numbers only, required)"
-    '\nUSER_ID=\n'
-)
-
-env_path = get_file_path(".env")
 
 
 def validate_env() -> None:
@@ -353,6 +392,33 @@ def validate_env() -> None:
         load_dotenv(dotenv_path=env_path, override=True)
 
 
+def save_env(notify_url: str, volume_url: str, user_id: int | str) -> None:
+    """
+    Saves the Discord Webhook URLs and User ID to the .env file.
+    """
+    content = (
+        "# Atleast ONE webhook URL MUST be filled in for the script to actually"
+        "\n# do something inside of just quietly detecting for noise in the background."
+        "\n\n# Discord Webhook URL for loud sound alerts"
+        f'\nNOTIFY_USER_URL={notify_url}'
+        "\n\n# Discord Webhook URL for live volume reports"
+        f'\nVOLUME_REPORT_URL={volume_url}'
+        "\n\n# Your Discord User ID (numbers only, required)"
+        f'\nUSER_ID={user_id}\n'
+    )
+    env_path.write_text(content, encoding="utf-8")
+    
+env_template = (
+    "# Atleast ONE webhook URL MUST be filled in for the script to actually"
+    "\n# do something inside of just quietly detecting for noise in the background."
+    "\n\n# Discord Webhook URL for loud sound alerts"
+    '\nNOTIFY_USER_URL='
+    "\n\n# Discord Webhook URL for live volume reports"
+    '\nVOLUME_REPORT_URL='
+    "\n\n# Your Discord User ID (numbers only, required)"
+    '\nUSER_ID=\n'
+)
+
 notif_auto_delete_duration = 60  # seconds
 volume_auto_delete_duration = 20  # seconds
 
@@ -363,6 +429,7 @@ ping_cooldown = 5.0
 volume_report_cooldown = 2.0
 ping_user_on_alert = True
 
+env_path = get_file_path(".env")
 CONFIG_FILE = get_file_path("config.json")
 DEFAULT_CONFIG = {  # config.json
     "noise_threshold": 0.1,
@@ -388,85 +455,9 @@ ping_user_on_alert = config["ping_user_on_alert"]
 config["noise_threshold"] = noise_threshold
 config["noise_floor"] = noise_floor
 config["sample_rate_hz"] = hertz_rate
-config["volume_report_cooldown"] = volume_report_cooldown
 config["ping_cooldown"] = ping_cooldown
-
-
-def find_audio_device() -> tuple[int, int]:
-    """
-    Find a suitable audio input device for detecting system audio.
-
-    The function first searches for devices commonly associated with
-    system-audio capture, such as virtual cables and stereo-mix devices.
-    If none are found, it falls back to the first available input device.
-
-    Returns:
-        tuple: A tuple containing the selected device's index and
-            maximum number of input channels.
-
-    Raises:
-        SystemExit: If audio devices cannot be queried or no valid
-            input device is available.
-    """
-    try:
-        devices = sd.query_devices()
-    except Exception:
-        show_fatal_error("Audio Device Failure", "Cannot query audio devices")
-        sys.exit(1)
-
-    for i, dev in enumerate(devices):
-        name = dev["name"].lower()
-        if dev["max_input_channels"] > 0 and (
-            "cable" in name
-            or "stereo mix" in name
-            or "what u hear" in name
-            or "loopback" in name
-            or "blackhole" in name
-        ):
-            return i, dev["max_input_channels"]
-
-    for i, dev in enumerate(devices):
-        if dev["max_input_channels"] > 0:
-            return i, dev["max_input_channels"]
-
-    show_fatal_error("Audio Device Failure", "No valid audio input device(s) found")
-    sys.exit(1)
-
-
-DEVICE_INDEX, INPUT_CHANNELS = find_audio_device()
-last_ping_time = 0
-
-
-def auto_delete_msg(webhook_url: str, msg_id: str, delay: int) -> None:
-    """
-    Delete a Discord webhook message after a specified delay.
-
-    The message is tracked in active_messages while waiting for
-    deletion. Regardless of whether deletion succeeds, the message is
-    removed from the tracking list afterward.
-
-    Args:
-        webhook_url (str): URL of the webhook that sent the message.
-        msg_id (str): ID of the Discord message to delete.
-        delay (int): Number of seconds to wait before deleting the
-            message.
-    """
-    if not webhook_url or not msg_id:
-        return
-
-    with messages_lock:
-        active_messages.append((webhook_url, msg_id))
-
-    time.sleep(delay)
-
-    try:
-        requests.delete(f"{webhook_url}/messages/{msg_id}", timeout=5)
-    except requests.RequestException:
-        pass
-    finally:
-        with messages_lock:
-            if (webhook_url, msg_id) in active_messages:
-                active_messages.remove((webhook_url, msg_id))
+config["volume_report_cooldown"] = volume_report_cooldown
+config["ping_user_on_alert"] = ping_user_on_alert
 
 
 def send_discord_ping(volume: float, delete_time: int) -> None:
@@ -586,7 +577,95 @@ def send_volume_report(volume: float) -> None:
             )
     except requests.RequestException:
         pass
+
+
+def auto_delete_msg(webhook_url: str, msg_id: str, delay: int) -> None:
+    """
+    Delete a Discord webhook message after a specified delay.
+
+    The message is tracked in active_messages while waiting for
+    deletion. Regardless of whether deletion succeeds, the message is
+    removed from the tracking list afterward.
+
+    Args:
+        webhook_url (str): URL of the webhook that sent the message.
+        msg_id (str): ID of the Discord message to delete.
+        delay (int): Number of seconds to wait before deleting the
+            message.
+    """
+    if not webhook_url or not msg_id:
+        return
+
+    with messages_lock:
+        active_messages.append((webhook_url, msg_id))
+
+    time.sleep(delay)
+
+    try:
+        requests.delete(f"{webhook_url}/messages/{msg_id}", timeout=5)
+    except requests.RequestException:
+        pass
+    finally:
+        with messages_lock:
+            if (webhook_url, msg_id) in active_messages:
+                active_messages.remove((webhook_url, msg_id))
+                
+
+def update_volume_bar(vol: float) -> None:
+    """
+    Live volume bar in the window that monitors sound.
+
+    Args:
+        vol (float): Volume
+    """
+    if volume_bar is not None and volume_bar.winfo_exists():
+        volume_bar["value"] = min(vol * 400, 100)
         
+
+def find_audio_device() -> tuple[int, int]:
+    """
+    Find a suitable audio input device for detecting system audio.
+
+    The function first searches for devices commonly associated with
+    system-audio capture, such as virtual cables and stereo-mix devices.
+    If none are found, it falls back to the first available input device.
+
+    Returns:
+        tuple: A tuple containing the selected device's index and
+            maximum number of input channels.
+
+    Raises:
+        SystemExit: If audio devices cannot be queried or no valid
+            input device is available.
+    """
+    try:
+        devices = sd.query_devices()
+    except Exception:
+        show_fatal_error("Audio Device Failure", "Cannot query audio devices")
+        sys.exit(1)
+
+    for i, dev in enumerate(devices):
+        name = dev["name"].lower()
+        if dev["max_input_channels"] > 0 and (
+            "cable" in name
+            or "stereo mix" in name
+            or "what u hear" in name
+            or "loopback" in name
+            or "blackhole" in name
+        ):
+            return i, dev["max_input_channels"]
+
+    for i, dev in enumerate(devices):
+        if dev["max_input_channels"] > 0:
+            return i, dev["max_input_channels"]
+
+    show_fatal_error("Audio Device Failure", "No valid audio input device(s) found")
+    sys.exit(1)
+
+
+DEVICE_INDEX, INPUT_CHANNELS = find_audio_device()
+last_ping_time = 0
+
 
 def audio_callback(
     indata: np.ndarray,
@@ -616,7 +695,8 @@ def audio_callback(
     current_time = time.time()
 
     volume_norm = float(np.sqrt(np.mean(indata**2)))
-
+    window.after(0, update_volume_bar, volume_norm)
+    
     if volume_norm > noise_floor:
         if current_time - last_volume_report_time > volume_report_cooldown:
             last_volume_report_time = current_time
@@ -652,7 +732,10 @@ def audio_listener() -> None:
             time.sleep(1)
                     
                     
-def main():  # Initilization
+def main() -> None:  # Initilization
+    """
+    Initialize the environment, configure the GUI window, and start the main event loop.
+    """
     global window, FIRST_DISCORD_WEBHOOK_URL, SECOND_DISCORD_WEBHOOK_URL, USER_ID
 
     window = tk.Tk()
@@ -663,8 +746,8 @@ def main():  # Initilization
     SECOND_DISCORD_WEBHOOK_URL = os.getenv("VOLUME_REPORT_URL") or ""
     USER_ID = os.getenv("USER_ID") or ""
 
-    width = 700
-    height = 650
+    width = 800
+    height = 800
     screen_width = window.winfo_screenwidth()
     screen_height = window.winfo_screenheight()
     x = int((screen_width / 2) - (width / 2))

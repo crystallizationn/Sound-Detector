@@ -1,10 +1,14 @@
 # Sound Detector
 
-Lightweight Python sound notification bot that listens to your computer's audio  
-and sends alerts to Discord when the detected volume passes a configurable threshold.
+Sound Detector application that listens for your device audio and sends alerts to Discord  
+when the detected volume passes a configurable threshold.
 
 The bot can mention your Discord user, include the detected volume and a timestamp,  
 and automatically delete alert messages after a set interval. An optional second webhook can report live volume levels.
+
+https://github.com/user-attachments/assets/2d4a51c3-b0a8-41b5-b2ab-c73317d9f6e9
+
+*Music: "Ruder Buster" by Toby Fox*
 
 ## Features
 
@@ -13,6 +17,9 @@ and automatically delete alert messages after a set interval. An optional second
 * **Live Volume (Optional):** Post volume readings through a second webhook, with readings above the threshold highlighted.
 * **Automatic Cleanup:** Delete alert messages after 60 seconds and live volume messages after 20 seconds by default.
 * **Customizable Settings:** Be able to change the noise threshold, noise floor, and etc through a GUI.  
+
+<img width="383" height="177" alt="ExceededThreshold" src="https://github.com/user-attachments/assets/afbfd510-637f-4ca1-ac10-4d0416357cbd" />
+<img width="310" height="210" alt="VolumeReport" src="https://github.com/user-attachments/assets/6faa9bd0-9f92-4eef-a307-4daad60a8e02" />
 
 ---
 
